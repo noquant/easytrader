@@ -63,6 +63,11 @@ def use(broker, debug=False, **kwargs):
 
         return GFClientTrader()
 
+    if broker.lower() in ["gtja_client", "国泰君安客户端"]:
+        from .gtja_richetrader import GTJARicheTrader
+
+        return GTJARicheTrader()
+
     if broker.lower() in ["universal_client", "通用同花顺客户端"]:
         from easytrader.universal_clienttrader import UniversalClientTrader
 

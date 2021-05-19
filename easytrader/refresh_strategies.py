@@ -6,7 +6,7 @@ from io import StringIO
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 import pandas as pd
-import pywinauto.keyboard
+import pywinauto.mouse
 import pywinauto
 import pywinauto.clipboard
 
@@ -57,3 +57,26 @@ class Toolbar(IRefreshStrategy):
 
     def refresh(self):
         self._trader._toolbar.button(self.refresh_btn_index - 1).click()
+
+
+# noinspection PyProtectedMember
+class Panelbar(IRefreshStrategy):
+    """通过点击工具栏刷新按钮刷新"""
+
+    def __init__(self, refresh_btn_offset: int = 4):
+        """
+        :param refresh_btn_offset:
+            交易客户端工具栏中“刷新”排序，默认为第4个，请根据自己实际调整
+        """
+        self.refresh_btn_offset = refresh_btn_offset
+        self._panel = None
+
+    def set_panel(self, panel):
+        self._panel = panel
+
+    def refresh(self):
+        rect = self._panel.rectangle()
+        x, y = rect.right - self.refresh_btn_offset, (rect.top + rect.bottom) // 2
+        pywinauto.mouse.move(coords=(x, y))
+        pywinauto.mouse.click(coords=(x, y))
+        self._trader.wait(0.5)

@@ -2,11 +2,14 @@
 import abc
 import io
 import tempfile
+import os
+import xlrd
 from io import StringIO
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 import pandas as pd
 import pywinauto.keyboard
+import pywinauto.mouse
 import pywinauto
 import pywinauto.clipboard
 
@@ -187,7 +190,10 @@ class Xls(BaseStrategy):
                 break
             self._trader.wait(0.2)
             count -= 1
-
+        else:
+            self._set_foreground(grid)  # setFocus buggy, instead of SetForegroundWindow
+            grid.type_keys("^s", set_foreground=False)
+            self._trader.wait(0.5)
         temp_path = tempfile.mktemp(suffix=".xls", dir=self.tmp_folder)
         self._set_foreground(self._trader.app.top_window())
 
@@ -214,3 +220,69 @@ class Xls(BaseStrategy):
             na_filter=False,
         )
         return df.to_dict("records")
+
+
+class Xls97(BaseStrategy):
+    """
+    通过将 Grid 另存为 xls 文件再读取的方式获取 grid 内容
+    """
+
+    def __init__(self, tmp_folder: Optional[str] = None):
+        """
+        :param tmp_folder: 用于保持临时文件的文件夹
+        """
+        super().__init__()
+        self.tmp_folder = tmp_folder
+
+    def _get_panel(self, control_id: int):
+        panel = self._trader.main.child_window(
+            control_id=control_id, class_name="TspSkinPanel"
+        )
+        return panel
+
+    def get(self, control_id: int) -> List[List]:
+        panel = self._get_panel(control_id)
+        self._set_foreground()
+        rect = panel.rectangle()
+        x, y = rect.right - 20, (rect.top + rect.bottom) // 2
+        pywinauto.mouse.move(coords=(x, y))
+        pywinauto.mouse.click(coords=(x, y))
+        for _ in range(30):
+            self._trader.wait(0.1)
+            if '另存为' in self._trader.app.top_window().texts():
+                self._set_foreground(self._trader.app.top_window())
+                break
+        temp_path = tempfile.mktemp(suffix=".xls", dir=self.tmp_folder)
+        # alt+s保存，alt+y替换已存在的文件
+        self._trader.app.top_window().Edit1.set_edit_text(temp_path)
+        self._trader.app.top_window().type_keys("%{s}%{y}", set_foreground=False)
+
+        return self._format_xls_data(temp_path)
+
+    def _format_xls_data(self, temp_path: str) -> List[List]:
+        result = []
+        #
+        try:
+            for _ in range(30):
+                self._trader.wait(0.1)
+                if os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                    self._trader.wait(0.1)
+                    break
+            data = xlrd.open_workbook(temp_path, encoding_override='GBK')
+            table = data.sheets()[0]
+            #
+            nrows = table.nrows
+            for i in range(nrows):
+                # print(table.row_values(i))
+                result.append(table.row_values(i))
+            for i in range(len(result[-1])):
+                if result[-1][i] != '':
+                    break
+            else:
+                result = result[:-1]
+                pass
+        # pylint: disable=broad-except
+        except Exception as e:
+            print(e)
+        #
+        return result

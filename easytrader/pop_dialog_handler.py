@@ -8,6 +8,51 @@ from easytrader.utils.perf import perf_clock
 from easytrader.utils.win_gui import SetForegroundWindow, ShowWindow, win32defines
 
 
+
+class EnterDialogHandler:
+    def __init__(self, app):
+        self._app = app
+
+    @staticmethod
+    def _set_foreground(window):
+        if window.has_style(win32defines.WS_MINIMIZE):  # if minimized
+            ShowWindow(window.wrapper_object(), 9)  # restore window state
+        else:
+            SetForegroundWindow(window.wrapper_object())  # bring to front
+
+    @perf_clock
+    def handle(self, title):
+        if any(s in title for s in {"提示信息", "委托确认", "撤单确认"}):
+            self._submit_by_click()
+            return None
+
+        content = self._extract_content()
+        self._close()
+        return {"message": "unknown message: {}".format(content)}
+
+    def _extract_content(self):
+        return self._app.top_window().TspSkinPanel.window_text()
+
+    @staticmethod
+    def _extract_entrust_id(content):
+        return re.search(r"[\da-zA-Z]+", content).group()
+
+    def _submit_by_click(self):
+        try:
+            self._app.top_window()["确定"].click()
+        except Exception as ex:
+            self._app.Window_(best_match="Dialog", top_level_only=True).ChildWindow(
+                best_match="确定"
+            ).click()
+
+    def _submit_by_shortcut(self):
+        self._set_foreground(self._app.top_window())
+        self._app.top_window().type_keys("%Y", set_foreground=False)
+
+    def _close(self):
+        self._app.top_window().close()
+
+
 class PopDialogHandler:
     def __init__(self, app):
         self._app = app
