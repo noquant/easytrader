@@ -196,6 +196,7 @@ class RicheTrader(IClientTrader):
 
         panel = self._main.child_window(title='bgpanel', class_name='TspSkinPanel')
         # panel.print_ctrl_ids()
+        self.refresh(panel.TspSkinPanel5)
         data = self._get_grid_data(panel.TspSkinPanel5.control_id())
         return self._to_list_dict(data[5:])
 
@@ -218,12 +219,16 @@ class RicheTrader(IClientTrader):
         return self._to_list_dict(data[5:])
 
     @perf_clock
-    def cancel_entrust(self, entrust_no):
+    def cancel_entrust(self, entrust_no, security=None):
         for i, entrust in enumerate(self.cancel_entrusts):
-            if entrust['委托号'] == entrust_no:
-                self._cancel_entrust_by_double_click(i)
-                # 如果出现了确认窗口
-                self.close_pop_dialog()
+            if len(entrust_no) > 0:
+                if entrust[self._config.CANCEL_ENTRUST_ENTRUST_FIELD] == entrust_no:
+                    self._cancel_entrust_by_double_click(i)
+                    return self._handle_pop_dialogs()
+            elif security is not None:
+                if entrust["证券代码"] == security[-6:]:
+                    self._cancel_entrust_by_double_click(i)
+                    return self._handle_pop_dialogs()
         return {"message": "委托单状态错误不能撤单, 该委托单可能已经成交或者已撤"}
 
     def cancel_all_entrusts(self):
@@ -266,13 +271,21 @@ class RicheTrader(IClientTrader):
         return self.market_trade('限价卖出(&S)', security, amount)
 
     def market_trade(self, title, security, amount, ttype=None, limit_price=None, **kwargs):
-        self._set_market_trade_params(title, security, amount)
+        ord = self._set_market_trade_params(title, security, amount)
 
         self._submit_trade(title)
 
-        return self._handle_pop_dialogs(
+        ret = self._handle_pop_dialogs(
             handler_class=pop_dialog_handler.EnterDialogHandler
         )
+
+        if 'titles' in ret and len(ret['titles']) == 2:
+            if ret['titles'] == ['委托确认', '富易']:
+                rect = ret['message']
+                if rect.right - rect.left == 316 and rect.bottom - rect.top == 133:
+                    return {'entrust_no':'%s@%s' % (ord['code'], ord['volume'])}
+        #
+        return None
 
     def auto_ipo(self):
         self._switch_left_menus(["新股申购", "今日申购"])
@@ -439,19 +452,21 @@ class RicheTrader(IClientTrader):
         # wait security input finish
         for _ in range(30):
             self.wait(0.1)
-            editor = panel.Edit4
-            texts = editor.texts()
-            if len(texts) > 0 and len(texts[0]) > 0:
+            edit4 = panel.Edit4
+            texts = edit4.texts()
+            if len(texts) > 0 and float(texts[0]) > 0.01:
+                edit4.select()
+                if '买' in title:
+                    edit4.type_keys('{UP}{UP}{UP}')
+                else:
+                    edit4.type_keys('{DOWN}{DOWN}{DOWN}')
                 break
-        editor.select()
-        if '买' in title:
-            editor.type_keys('{UP}{UP}{UP}')
-        else:
-            editor.type_keys('{DOWN}{DOWN}{DOWN}')
         #
-        editor = panel.Edit2
-        editor.select()
-        editor.type_keys(str(int(amount)))
+        edit2 = panel.Edit2
+        edit2.select()
+        edit2.type_keys(str(int(amount)))
+
+        return {'code':code, 'price':edit4.window_text(), 'volume':amount}
 
     def _get_grid_data(self, control_id):
         return self.grid_strategy_instance.get(control_id)
@@ -564,15 +579,16 @@ class RicheTrader(IClientTrader):
     @perf_clock
     def _handle_pop_dialogs(self, handler_class=pop_dialog_handler.PopDialogHandler):
         handler = handler_class(self._app)
-
+        titles = []
         while self.is_exist_pop_dialog():
             try:
                 title = self._get_pop_dialog_title()
             except pywinauto.findwindows.ElementNotFoundError:
                 return {"message": "success"}
-
+            titles.append(title)
             result = handler.handle(title)
             if result:
+                result['titles'] = titles
                 return result
         return {"message": "success"}
 

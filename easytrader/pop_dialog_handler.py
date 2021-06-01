@@ -28,10 +28,10 @@ class EnterDialogHandler:
 
         content = self._extract_content()
         self._close()
-        return {"message": "unknown message: {}".format(content)}
+        return {"message": content}
 
     def _extract_content(self):
-        return self._app.top_window().TspSkinPanel.window_text()
+        return self._app.top_window().TspSkinPanel.rectangle()
 
     @staticmethod
     def _extract_entrust_id(content):

@@ -414,7 +414,7 @@ class ClientTrader(IClientTrader):
     def trade(self, security, price, amount):
         self._set_trade_params(security, price, amount)
 
-        self._submit_trade()
+        self._submit_trade_by_shortcut()
 
         return self._handle_pop_dialogs(
             handler_class=pop_dialog_handler.TradePopDialogHandler
@@ -431,6 +431,11 @@ class ClientTrader(IClientTrader):
         self._main.child_window(
             control_id=self._config.TRADE_SUBMIT_CONTROL_ID, class_name="Button"
         ).click()
+
+    @perf_clock
+    def _submit_trade_by_shortcut(self):
+        time.sleep(0.1)
+        self._app.top_window().type_keys('{ENTER}')
 
     @perf_clock
     def __get_top_window_pop_dialog(self):
