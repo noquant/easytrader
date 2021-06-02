@@ -242,6 +242,9 @@ class TestUniversalClientTrader(unittest.TestCase):
     def test_auto_ipo(self):
         self._user.auto_ipo()
 
+    def test_auto_ipo_one(self):
+        self._user.auto_ipo_one()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

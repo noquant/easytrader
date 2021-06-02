@@ -346,6 +346,30 @@ class ClientTrader(IClientTrader):
 
         return self._handle_pop_dialogs()
 
+    def auto_ipo_one(self):
+        self._switch_left_menus(self._config.AUTO_IPO_MENU_PATH_ONE)
+
+        stock_list = self._get_grid_data(self._config.COMMON_GRID_CONTROL_ID)
+
+        if len(stock_list) == 0:
+            return {"message": "今日无新股"}
+        invalid_list_idx = [
+            i for i, v in enumerate(stock_list) if v[self.config.AUTO_IPO_NUMBER] <= 0
+        ]
+
+        if len(stock_list) == len(invalid_list_idx):
+            return {"message": "没有发现可以申购的新股"}
+
+        for row in range(len(stock_list)):
+            self._double_click_grid_by_row(row)
+            self._click(self._config.AUTO_IPO_STATIC_CONTROL_ID, "Static")
+            self._click(self._config.AUTO_IPO_BUTTON_CONTROL_ID)
+            self.wait(0.1)
+            self._handle_pop_dialogs()
+        self.wait(0.1)
+
+        return self._handle_pop_dialogs()
+
     def _click_grid_by_row(self, row):
         x = self._config.COMMON_GRID_LEFT_MARGIN
         y = (
@@ -356,6 +380,17 @@ class ClientTrader(IClientTrader):
             control_id=self._config.COMMON_GRID_CONTROL_ID,
             class_name="CVirtualGridCtrl",
         ).click(coords=(x, y))
+
+    def _double_click_grid_by_row(self, row):
+        x = self._config.COMMON_GRID_LEFT_MARGIN
+        y = (
+            self._config.COMMON_GRID_FIRST_ROW_HEIGHT
+            + self._config.COMMON_GRID_ROW_HEIGHT * row
+        )
+        self._app.top_window().child_window(
+            control_id=self._config.COMMON_GRID_CONTROL_ID,
+            class_name="CVirtualGridCtrl",
+        ).double_click(coords=(x, y))
 
     @perf_clock
     def is_exist_pop_dialog(self):
@@ -420,9 +455,9 @@ class ClientTrader(IClientTrader):
             handler_class=pop_dialog_handler.TradePopDialogHandler
         )
 
-    def _click(self, control_id):
+    def _click(self, control_id, class_name="Button"):
         self._app.top_window().child_window(
-            control_id=control_id, class_name="Button"
+            control_id=control_id, class_name=class_name
         ).click()
 
     @perf_clock
